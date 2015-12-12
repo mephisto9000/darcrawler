@@ -1,14 +1,23 @@
 package main
 
 import (
-  "crypto/tls"   
-  "flag"         
+  "crypto/tls"
+  "flag"
   "fmt"
   "github.com/jackdanger/collectlinks"
   "net/http"
-  "os" 
+  "net/url"
+  "os"
 )
 
+                                     
+var visited = make(map[string]bool)  
+                                     
+                                     
+                                     
+                                     
+                                     
+                                     
 func main() {
   flag.Parse()
 
@@ -19,43 +28,51 @@ func main() {
     os.Exit(1)
   }
 
+  queue := make(chan string)
 
-	queue := make(chan string)
+  go func() { queue <- args[0] }()
 
-	go func() {
+  for uri := range queue {
+    enqueue(uri, queue)
+  }
+}
 
-		queue <- args[0]
-	}()
+func enqueue(uri string, queue chan string) {
+  fmt.Println("fetching", uri)
+  visited[uri] = true                        
+  transport := &http.Transport{
+    TLSClientConfig: &tls.Config{
+      InsecureSkipVerify: true,
+    },
+  }
+  client := http.Client{Transport: transport}
+  resp, err := client.Get(uri)
+  if err != nil {
+    return
+  }
+  defer resp.Body.Close()
 
-	for uri := range queue {
+  links := collectlinks.All(resp.Body) 
 
-	enqueue(uri, queue)
-	}
-	}
+  for _, link := range links {
+    absolute := fixUrl(link, uri)
+    if uri != "" {
+      if !visited[absolute] {          
+        go func() { queue <- absolute }()
+      }
+    }
+  }
+}
 
-	func enqueue(uri string, queue chan string) {
-		fmt.Println("fetching", uri)
-
-		tlsConfig := &tls.Config{
-			InsertSkipVerify: true,
-		}
-
-		transport := &http.Transport{
-			TLSClientConfig: tlsConfig,
-		}
-
-		client := http.Client{Transport: transport}
-		resp, err := client.Get(uri)
-		if err != nil {
-			return
-		}
-		defer resp.Body.Close()
-
-		links := collectlinks.All(resp.Body)
-
-		for _, link := range links {
-			go func() {queue <- link} ()
-		}
-	}
-
- 
+func fixUrl(href, base string) (string) {
+  uri, err := url.Parse(href)
+  if err != nil {
+    return ""
+  }
+  baseUrl, err := url.Parse(base)
+  if err != nil {
+    return ""
+  }
+  uri = baseUrl.ResolveReference(uri)
+  return uri.String()
+}
