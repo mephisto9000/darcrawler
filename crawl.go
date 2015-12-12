@@ -19,28 +19,43 @@ func main() {
     os.Exit(1)
   }
 
-  tlsConfig := &tls.Config{                 
-                 InsecureSkipVerify: true,  
-               }                            
-                                            
-                                            
 
-  transport := &http.Transport{    
-    TLSClientConfig: tlsConfig,    
-  }                                
+	queue := make(chan string)
 
-  client := http.Client{Transport: transport}  
-                                               
+	go func() {
 
-  resp, err := client.Get(args[0])  
-  if err != nil {                   
-    return                          
-  }
-  defer resp.Body.Close()
-  
-  links := collectlinks.All(resp.Body)
+		queue <- args[0]
+	}()
 
-  for _, link := range(links) {
-    fmt.Println(link)
-  }
-}
+	for uri := range queue {
+
+	enqueue(uri, queue)
+	}
+	}
+
+	func enqueue(uri string, queue chan string) {
+		fmt.Println("fetching", uri)
+
+		tlsConfig := &tls.Config{
+			InsertSkipVerify: true,
+		}
+
+		transport := &http.Transport{
+			TLSClientConfig: tlsConfig,
+		}
+
+		client := http.Client{Transport: transport}
+		resp, err := client.Get(uri)
+		if err != nil {
+			return
+		}
+		defer resp.Body.Close()
+
+		links := collectlinks.All(resp.Body)
+
+		for _, link := range links {
+			go func() {queue <- link} ()
+		}
+	}
+
+ 
