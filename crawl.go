@@ -40,10 +40,9 @@ func enqueue(uri string, queue chan string) {
 
 	for _, link := range links {
 		absolute := fixUrl(link, uri)
-		if uri != "" {
-			if !visited[absolute] {
-				go func() { queue <- absolute }()
-			}
+
+		if uri != "" && !visited[absolute] {
+			go func() { queue <- absolute }()
 		}
 	}
 }
@@ -82,19 +81,18 @@ func findRawLinks(uri string) ([]string, error) {
 		return nil, err
 	}
 
-	// TODO check error results!
-
 	// important -- don't forget to free  the resources when you're done!
 	defer doc.Free()
 
 	// perform operations on the parsed page
 
-	urls := make([]string, 0)
+	var urls []string
 	html := doc.Root().FirstChild()
 	results, err := html.Search("//a/@href")
 	if err != nil {
 		return nil, err
 	}
+
 	if results != nil {
 		for _, node := range results {
 			urls = append(urls, node.String())
